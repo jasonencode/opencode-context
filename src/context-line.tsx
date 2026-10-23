@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, Show } from "solid-js"
+import { RGBA } from "@opentui/core"
 import type { Context } from "@opencode/plugin/tui/context"
 import { computeContextUsage, formatTokensShort } from "./context.js"
 
@@ -40,12 +41,12 @@ export function ContextLine(props: ContextLineProps) {
   let boxRef: any = null
 
   const theme = () => props.ctx.theme as any
-  const muted = () => theme()?.text?.muted
-  const base = () => theme()?.text?.base
-  const success = () =>
-    theme()?.text?.feedback?.success?.base ?? theme()?.hue?.accent?.[500] ?? base()
-  const warning = () => theme()?.text?.feedback?.warning?.base ?? success()
-  const error = () => theme()?.text?.feedback?.error?.base ?? warning()
+  const muted = () => theme()?.text?.muted ?? theme()?.text?.subdued
+  const base = () => theme()?.text?.base ?? theme()?.text?.default
+  const borderColor = () => RGBA.fromInts(55, 65, 80, 255)
+  const success = () => RGBA.fromInts(76, 175, 80, 255)
+  const warning = () => RGBA.fromInts(255, 193, 7, 255)
+  const error = () => RGBA.fromInts(244, 67, 54, 255)
 
   const usage = createMemo(() => {
     const session = props.ctx.data.session.get(props.sessionID)
@@ -67,8 +68,8 @@ export function ContextLine(props: ContextLineProps) {
   const layout = (used: number, limit: number | undefined, percent: number | undefined) => {
     const ratio = ratioText(used, limit)
     const percentText = percent === undefined ? "" : `${percent}%`
-    const reserved = visualWidth("Context:") + visualWidth(ratio) + visualWidth(percentText) + 4
-    const bar = barWidth(width(), reserved)
+    const reserved = visualWidth(ratio) + visualWidth(percentText) + 4
+    const bar = barWidth(width() - 4, reserved)
     const filled = percent === undefined ? 0 : clamp(Math.round((percent / 100) * bar), 0, bar)
     return { bar, filled, ratio, percentText }
   }
@@ -86,24 +87,26 @@ export function ContextLine(props: ContextLineProps) {
               const measured = Number(boxRef?.width)
               if (Number.isFinite(measured) && measured > 0) setWidth(measured)
             }}
+            border
+            borderStyle="rounded"
+            borderColor={borderColor()}
+            paddingX={1}
             flexDirection="column"
             paddingTop={0}
             paddingBottom={0}
           >
             <text wrapMode="none" truncate>
-              <span style={{ fg: muted() } as any}>{"Context:"}</span>
               {value().percent === undefined ? (
-                <span style={{ fg: base() } as any}>{` ${parts().ratio}`}</span>
+                <span style={{ fg: base() } as any}>{parts().ratio}</span>
               ) : (
                 <>
                   <span style={{ fg: barColor(value().percent) } as any}>
-                    {" "}
                     {"█".repeat(parts().filled)}
                   </span>
-                  <span style={{ fg: muted() } as any}>
+                  <span style={{ fg: barColor(value().percent) } as any}>
                     {"░".repeat(parts().bar - parts().filled)}
                   </span>
-                  <span style={{ fg: base() } as any}>{` ${parts().percentText}`}</span>
+                  <span style={{ fg: barColor(value().percent) } as any}>{` ${parts().percentText}`}</span>
                   <span style={{ fg: muted() } as any}>{` ${parts().ratio}`}</span>
                 </>
               )}
