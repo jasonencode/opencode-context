@@ -30,7 +30,16 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc && node build.tui.mjs"
+    "build": "tsc && node build.tui.mjs",
+    "prepack": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasonencode/opencode-context.git"
+  },
+  "homepage": "https://github.com/jasonencode/opencode-context#readme",
+  "bugs": {
+    "url": "https://github.com/jasonencode/opencode-context/issues"
   },
   "keywords": [
     "opencode",
