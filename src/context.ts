@@ -1,5 +1,5 @@
 /**
- * 上下文窗口占用计算 —— 与 OpenCode 1.x/2.x 内置 `cV` 口径保持一致。
+ * 上下文窗口占用计算 —— 与 OpenCode 2.x 内置实现（2.1.x 中为 `yr` / `LV`）口径保持一致。
  *
  * 规则：
  * - 取最后一条带 tokens 的 assistant 消息；
@@ -106,7 +106,7 @@ export function computeContextUsage(
 export function formatTokensShort(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0"
 
-  const units = ["", "K", "M", "B"] as const
+  const units = ["", "K", "M", "G", "T"] as const
   let value = n
   let unit = 0
 

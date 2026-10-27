@@ -12,11 +12,11 @@
 
 进度条会随终端宽度自动伸缩，并根据占用比例改变颜色：
 
-| 占用比例 | 颜色 |
+| 占用比例 | 颜色（固定 RGB，不随主题变化） |
 | --- | --- |
-| < 70% | 主题 success / accent |
-| ≥ 70% | 主题 warning |
-| ≥ 90% | 主题 error |
+| < 70% | 绿色 RGB 76, 175, 80 |
+| ≥ 70% | 琥珀色 RGB 255, 193, 7 |
+| ≥ 90% | 红色 RGB 244, 67, 54 |
 
 无法获取模型上下文上限时，只显示已用 token 数（例如 `12.4K`），不显示进度条。token 数按 **1024 进制**换算（1K = 1024，1M = 1024K）。
 
@@ -33,7 +33,7 @@
 
 ## 环境要求
 
-- [OpenCode](https://opencode.ai) 2.x（插件 API `@opencode/plugin` >= 2.1.3）
+- [OpenCode](https://opencode.ai) 2.x（插件 API `@opencode/plugin` >= 2.0.0）
 - Node.js >= 18（仅构建时需要）
 
 ## 安装
@@ -90,10 +90,11 @@ npm run build
 
 ## 配置项
 
-当前版本无需任何配置。主题颜色直接取自 OpenCode 当前主题：
+当前版本无需任何配置。文字颜色取自 OpenCode 当前主题，边框与进度条使用固定 RGB 色（与 TokenWatch 一致），不随主题切换而变化：
 
 - 文字：`text.base` / `text.muted`
-- 状态色：`text.feedback.success` / `text.feedback.warning` / `text.feedback.error`
+- 边框：RGB 55, 65, 80
+- 进度条：< 70% 绿色、≥ 70% 琥珀色、≥ 90% 红色
 
 ## 统计规则
 
@@ -120,6 +121,7 @@ npm run build
 
 ```sh
 npm install     # 安装依赖
+npm test        # 纯函数单元测试（node --test）
 npm run build   # tsc 生成类型声明 + esbuild 打包 dist
 ```
 

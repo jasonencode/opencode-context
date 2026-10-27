@@ -2,7 +2,7 @@
 /**
  * TUI 入口 —— OpenCode 2.x CLI 插件。
  *
- * 复用内置插件 id `opencode.sidebar.context`。OpenCode 2.1.3 的 TUI 插件
+ * 复用内置插件 id `opencode.sidebar.context`。OpenCode 2.x 的 TUI 插件
  * 注册表以 id 为键：内置插件先写入，外部插件随后覆盖同 id 项。因此本插件
  * 会替换内置的 Context 行，而不是与其并存。
  */
