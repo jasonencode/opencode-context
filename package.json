@@ -1,6 +1,6 @@
 {
   "name": "@jasonencode/opencode-context",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Context window usage for the OpenCode sidebar",
   "type": "module",
   "main": "./dist/server.js",
@@ -31,7 +31,7 @@
   },
   "scripts": {
     "build": "tsc && node build.tui.mjs",
-    "test": "node --test test/context.test.mjs",
+    "test": "node --test test/context.test.mjs test/folder.test.mjs",
     "prepack": "npm run build"
   },
   "repository": {

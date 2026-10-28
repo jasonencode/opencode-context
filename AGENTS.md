@@ -13,6 +13,7 @@ built-in right-sidebar Context line by reusing the
 - `src/tui.tsx` — TUI plugin entry (`{ id, setup(ctx) }`).
 - `src/context.ts` — pure context-window calculation (no host dependency).
 - `src/context-line.tsx` — SolidJS component rendered into `sidebar.content`.
+- `src/folder.ts` — session folder path + OS file-manager spawn (no host API).
 - `src/server.ts` — legal empty server plugin.
 - `build.tui.mjs` — esbuild bundle (SolidJS JSX + TUI/server entries).
 

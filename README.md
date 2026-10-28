@@ -1,6 +1,6 @@
 # opencode-context
 
-为 OpenCode 2.x 的右侧边栏提供一个紧凑的 **上下文窗口占用进度条**。
+为 OpenCode 2.x 的右侧边栏提供一个紧凑的 **上下文窗口占用进度条**，并在框下方显示当前所在的文件夹（点击可用系统文件管理器打开）。
 
 它复用内置插件的 ID，直接覆盖侧边栏中的内置 Context 行：
 
@@ -8,6 +8,7 @@
 ╭────────────────────────────────╮
 │ ████████░░░░░░░░ 52% 104K/200K │
 ╰────────────────────────────────╯
+📁 D:\Develops\Github\opencode-context
 ```
 
 进度条会随终端宽度自动伸缩，并根据占用比例改变颜色：
@@ -27,8 +28,11 @@
 - 圆角外框，边框颜色与 TokenWatch 一致（RGB 55, 65, 80）
 - 正确处理中日韩宽字符（每个字符按 2 列计算）
 - 会话压缩（compaction）与 revert 后自动重新计数
+- 在进度条下方显示当前会话文件夹，过长时保留尾部并自动省略
+- 点击文件夹行，用系统文件管理器（资源管理器 / Finder / xdg-open）打开
+- 鼠标悬停时文件夹行高亮并显示下划线
 - 仅依赖宿主提供的 SolidJS / OpenTUI 运行时，不重复打包
-- 无数据时自动隐藏，不占用侧边栏空间
+- 无 token 数据时隐藏进度条，但仍显示当前文件夹
 - 复用内置插件 ID `opencode.sidebar.context`，安装后直接覆盖内置 Context 行
 
 ## 环境要求
@@ -95,6 +99,19 @@ npm run build
 - 文字：`text.base` / `text.muted`
 - 边框：RGB 55, 65, 80
 - 进度条：< 70% 绿色、≥ 70% 琥珀色、≥ 90% 红色
+- 文件夹行：`text.muted`，悬停时切换为 `text.base` 并加下划线
+
+## 文件夹行
+
+进度条下方显示当前会话的工作目录（`session.location.directory` 与 `session.subpath` 拼接），路径来自宿主的会话数据，因此切换会话或切换工作目录后会自动更新。
+
+- 路径过长时从左侧省略（`…`），优先保留文件夹名
+- 鼠标悬停时高亮并加下划线
+- **点击**该行会调用系统文件管理器打开文件夹：
+  - Windows：`explorer.exe`
+  - macOS：`open`
+  - Linux：`xdg-open`
+- 目录不存在（例如 TUI 连接的是远程服务器）或启动失败时，会弹出错误提示，不会静默失败
 
 ## 统计规则
 
@@ -143,7 +160,9 @@ npm run build   # tsc 生成类型声明 + esbuild 打包 dist
 │   ├── tui.tsx           # TUI 插件入口（id + setup）
 │   ├── context-line.tsx  # 侧边栏 SolidJS 组件
 │   ├── context.ts        # 纯函数：上下文占用计算与 token 格式化
+│   ├── folder.ts         # 当前文件夹路径拼接 + 调用系统文件管理器
 │   └── server.ts         # 服务端空插件（不加载任何 TUI 代码）
+├── test/                 # node --test 单元测试
 ├── index.ts              # 目录插件服务端入口 → dist/server.js
 ├── tui.ts                # 目录插件 TUI 入口 → dist/tui.js
 ├── build.tui.mjs         # esbuild 构建脚本
@@ -159,8 +178,10 @@ OpenCode 启动
   └─ TUI：tui.ts → dist/tui.js
         └─ setup(ctx)
               └─ ctx.ui.slot({ prepend: "sidebar.content", render: ContextLine })
-                    └─ 读取 session messages + models
-                          └─ computeContextUsage() → 渲染进度条
+                    ├─ 读取 session messages + models
+                    │     └─ computeContextUsage() → 渲染进度条
+                    └─ 读取 session.location / subpath
+                          └─ 渲染文件夹行 → 点击 openFolder()
 ```
 
 ## 常见问题
@@ -171,6 +192,12 @@ OpenCode 启动
 - 确认插件已加入 `cli.json` 或 `opencode.jsonc` 的 `plugins`
 - 新会话在第一条 assistant 回复完成前没有 token 数据，属正常现象
 - 本地加载时确认已执行 `npm run build`
+
+**点击文件夹没有反应？**
+
+- 目录不存在时会弹出错误提示；如果 TUI 连接的是远程服务器，本机没有该路径，因此无法直接打开
+- Linux 需要安装 `xdg-open`（通常由 `xdg-utils` 提供）
+- 部分终端会拦截鼠标事件，可先在其他区域移开再点击
 
 **构建后仍然使用旧代码？**
 
