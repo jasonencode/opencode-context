@@ -7,7 +7,7 @@ import { build } from "esbuild"
  * 也避免为 TypeScript 测试再引入一套运行时。
  */
 const bundle = await build({
-  entryPoints: ["src/context.ts"],
+  entryPoints: ["src/kernel/context.ts"],
   bundle: true,
   format: "esm",
   platform: "node",

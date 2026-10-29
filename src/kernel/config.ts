@@ -1,0 +1,81 @@
+/**
+ * 侧边栏配置 —— 宿主无关的持久化设置。
+ *
+ * 读写只依赖 `KeyValueStore`（v2 的 storage.store 在 adapter 中折叠），
+ * 因此设置项与宿主 API 解耦。
+ */
+import type { KeyValueStore } from "../host/types.js"
+
+export interface SidebarConfig {
+  sidebar: {
+    showPerformance: boolean
+    showPricing: boolean
+    showTokenDistribution: boolean
+    showTrend: boolean
+  }
+  language: "zh" | "en" | "auto"
+}
+
+export type SidebarToggleKey = keyof SidebarConfig["sidebar"]
+
+const DEFAULT_CONFIG: SidebarConfig = {
+  sidebar: { showPerformance: true, showPricing: true, showTokenDistribution: true, showTrend: true },
+  language: "auto",
+}
+
+const KEY_CONFIG = "tokenwatch-config"
+const KEY_VERSION = "tokenwatch-config-version"
+
+function cloneDefaults(): SidebarConfig {
+  return { sidebar: { ...DEFAULT_CONFIG.sidebar }, language: DEFAULT_CONFIG.language }
+}
+
+/**
+ * 读取配置：默认值 ← 插件声明式配置 ← 运行时覆盖（设置菜单）。
+ * `pluginConfig` 为宿主声明式配置，v2 暂无等价物（保留参数以兼容旧数据）。
+ */
+export function loadConfig(store: KeyValueStore, pluginConfig?: Record<string, any>): SidebarConfig {
+  const base = cloneDefaults()
+  try {
+    // 合并后插件 ID 变为 `opencode.sidebar.context`；保留旧键回退，
+    // 让从 opencode-tokenwatch 迁移的用户沿用已有配置。
+    const pluginCfg =
+      pluginConfig?.["opencode.sidebar.context"] ?? pluginConfig?.["opencode-tokenwatch"]
+    if (pluginCfg?.sidebar) Object.assign(base.sidebar, pluginCfg.sidebar)
+    if (pluginCfg?.language) base.language = pluginCfg.language
+    const overrides = store.get<Partial<SidebarConfig> | undefined>(KEY_CONFIG, undefined)
+    if (overrides?.sidebar) Object.assign(base.sidebar, overrides.sidebar)
+    if (overrides?.language) base.language = overrides.language
+  } catch { /* defaults */ }
+  return base
+}
+
+function saveConfig(store: KeyValueStore, cfg: SidebarConfig): void {
+  store.set(KEY_CONFIG, cfg)
+  bumpVersion(store)
+}
+
+/**
+ * 递增配置版本号。
+ *
+ * 侧边栏用轮询版本号的方式感知"设置在别处被改了"，
+ * 因为插件自己的 KeyValueStore 快照不是响应式的。
+ */
+function bumpVersion(store: KeyValueStore): void {
+  const v = (store.get<number>(KEY_VERSION, 0) ?? 0) + 1
+  store.set(KEY_VERSION, v)
+}
+
+export function toggleSidebarSetting(store: KeyValueStore, key: SidebarToggleKey): SidebarConfig {
+  const current = loadConfig(store)
+  current.sidebar[key] = !current.sidebar[key]
+  saveConfig(store, current)
+  return current
+}
+
+export function setLanguageSetting(store: KeyValueStore, language: SidebarConfig["language"]): SidebarConfig {
+  const current = loadConfig(store)
+  current.language = language
+  saveConfig(store, current)
+  return current
+}

@@ -2,35 +2,36 @@
 /**
  * TUI 入口 —— OpenCode 2.x CLI 插件。
  *
- * 复用内置插件 id `opencode.sidebar.context`。OpenCode 2.x 的 TUI 插件
- * 注册表以 id 为键：内置插件先写入，外部插件随后覆盖同 id 项。因此本插件
- * 会替换内置的 Context 行，而不是与其并存。
+ * 宿主读取默认导出的 `id` 与 `setup(ctx)`，在 CLI 侧装配侧边栏、命令与事件订阅。
+ * 装配期异常必须"可见"：宿主失败时只弹一个不含调用栈的提示，
+ * 因此这里捕获异常，用 toast 暴露首行原因，便于定位。
  */
 import type { Plugin } from "@opencode/plugin/tui"
-import { ContextLine } from "./context-line.js"
+import { startTokenWatch } from "./host/runtime.js"
+import { createV2Adapter } from "./host/v2/adapter.js"
+import { registerV2Commands } from "./host/v2/commands.js"
 
+// `Plugin.define` 只是身份函数；这里用 type-only 导入并直接导出同形状对象，
+// 避免运行时把宿主 SDK 及其 @opentui/solid-js peers 一并带入插件目录，
+// 造成第二份 OpenTUI 运行时（v0.6.1 在 2.1.3 上失效的根因）。
 const plugin: Plugin.Definition = {
   id: "opencode.sidebar.context",
   setup(ctx) {
     try {
-      const off = ctx.ui.slot({
-        prepend: "sidebar.content",
-        render: (input) => <ContextLine ctx={ctx} sessionID={input.sessionID} />,
-      })
+      const dispose = new Set<() => void>()
+      const host = createV2Adapter(ctx, dispose)
+      startTokenWatch(host)
+      registerV2Commands(host)
       return () => {
-        try {
-          off()
-        } catch {
-          /* ignore */
+        for (const fn of dispose) {
+          try { fn() } catch { /* ignore */ }
         }
       }
     } catch (err) {
       const message = err instanceof Error ? (err.stack ?? err.message).split("\n")[0] : String(err)
       try {
-        ctx.ui.toast.show({ message: `Context setup failed: ${message}`, variant: "error" })
-      } catch {
-        /* host may not expose toast */
-      }
+        ctx.ui.toast.show({ message: `opencode-context setup failed: ${message}`, variant: "error" })
+      } catch { /* host may not expose toast */ }
       return () => {}
     }
   },

@@ -3,11 +3,14 @@ import { solidPlugin } from "esbuild-plugin-solid"
 import { readFileSync } from "node:fs"
 
 /**
- * esbuild build script for opencode-context.
+ * esbuild build script for the opencode-context TUI plugin.
  *
- * Bundles src/tui.tsx -> dist/tui.js with SolidJS JSX pre-compiled, and
- * src/server.ts -> dist/server.js. Runtime peers (solid-js, @opentui/*,
- * @opencode/*) stay external; the OpenCode 2.x host provides them.
+ * Bundles src/tui.tsx -> dist/tui.js with SolidJS JSX pre-compiled
+ * (JSX -> createComponent calls via esbuild-plugin-solid).
+ * Also builds src/server.ts -> dist/server.js (plain JS, no JSX).
+ *
+ * All runtime deps (solid-js, @opentui/*, @opencode/*) are kept
+ * as external imports - the OpenCode 2.x host provides them at runtime.
  */
 
 const external = [
@@ -37,6 +40,7 @@ const common = {
 }
 
 await Promise.all([
+  // TUI module - SolidJS JSX pre-compilation
   build({
     ...common,
     entryPoints: ["src/tui.tsx"],
@@ -45,6 +49,8 @@ await Promise.all([
       solid: { moduleName: "@opentui/solid", generate: "universal" },
     })],
   }),
+  // Server module - no JSX, no TUI imports (TUI entry is exported separately
+  // via package.json exports["./tui"] so the server process never resolves @opentui).
   build({
     ...common,
     entryPoints: ["src/server.ts"],
@@ -52,10 +58,11 @@ await Promise.all([
   }),
 ])
 
+// ── 产物断言：server.js 不得吞下 TUI 代码图（曾因未加 external 而发生过） ──
 const serverJs = readFileSync("dist/server.js", "utf-8")
-if (/import\s[^;]*["']@opentui\//.test(serverJs)) {
-  console.error("dist/server.js leaked TUI imports (@opentui)")
+if (serverJs.includes("React.createElement") || /import\s[^;]*["@']@opentui\//.test(serverJs)) {
+  console.error("✗ dist/server.js 泄漏了 TUI 代码图（React.createElement 或 @opentui 静态导入）")
   process.exit(1)
 }
 
-console.log("esbuild: dist/tui.js + dist/server.js")
+console.log("✓ esbuild: dist/tui.js + dist/server.js")
