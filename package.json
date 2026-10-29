@@ -30,7 +30,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc && node build.tui.mjs",
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run clean && tsc && node build.tui.mjs",
     "test": "node --test test/context.test.mjs test/session-timing.test.mjs",
     "prepack": "npm run build"
   },
