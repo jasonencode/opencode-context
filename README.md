@@ -1,6 +1,6 @@
 # opencode-context
 
-为 OpenCode 2.x 的右侧边栏提供一个紧凑的 **上下文窗口占用进度条**，并在框下方显示当前所在的文件夹（点击可用系统文件管理器打开）。
+为 OpenCode 2.x 的右侧边栏提供一个紧凑的 **上下文窗口占用进度条**，并在框下方显示当前所在的文件夹（点击可用系统文件管理器打开）与会话耗时。
 
 它复用内置插件的 ID，直接覆盖侧边栏中的内置 Context 行：
 
@@ -9,6 +9,7 @@
 │ ████████░░░░░░░░ 52% 104K/200K │
 ╰────────────────────────────────╯
 📁 D:\Develops\Github\opencode-context
+↻ 1m 05s · ⏱ 12m 34s
 ```
 
 进度条会随终端宽度自动伸缩，并根据占用比例改变颜色：
@@ -31,6 +32,7 @@
 - 在进度条下方显示当前会话文件夹，过长时保留尾部并自动省略
 - 点击文件夹行，用系统文件管理器（资源管理器 / Finder / xdg-open）打开
 - 鼠标悬停时文件夹行高亮并显示下划线
+- 在文件夹行下方显示会话总耗时与最近一次执行耗时，运行中每秒实时跳动且图标旋转
 - 仅依赖宿主提供的 SolidJS / OpenTUI 运行时，不重复打包
 - 无 token 数据时隐藏进度条，但仍显示当前文件夹
 - 复用内置插件 ID `opencode.sidebar.context`，安装后直接覆盖内置 Context 行
@@ -100,6 +102,7 @@ npm run build
 - 边框：RGB 55, 65, 80
 - 进度条：< 70% 绿色、≥ 70% 琥珀色、≥ 90% 红色
 - 文件夹行：`text.muted`，悬停时切换为 `text.base` 并加下划线
+- 耗时行：`↻` 与 `⏱` 前缀为 `text.muted`，两个时间值为 `text.base`
 
 ## 文件夹行
 
@@ -112,6 +115,20 @@ npm run build
   - macOS：`open`
   - Linux：`xdg-open`
 - 目录不存在（例如 TUI 连接的是远程服务器）或启动失败时，会弹出错误提示，不会静默失败
+
+## 耗时统计
+
+文件夹行下方显示当前会话的执行耗时，例如 `↻ 1m 05s · ⏱ 12m 34s`：
+
+| 字段 | 含义 |
+| --- | --- |
+| `↻` 后的时间 | 最近一次执行耗时（一轮对话）：最后一条 user 消息到最后一条消息完成（运行中算到当前） |
+| `⏱` 后的时间 | 会话总耗时：首条消息到最后一条消息完成（运行中算到当前） |
+
+- 会话处于 `running` 状态时每秒刷新耗时，`↻` 会变成旋转的圆形指示器（`◐ ◓ ◑ ◒`，约 8fps）；空闲后恢复静态 `↻` 并停止刷新
+- 会话存在 `revert.messageID` 时，只统计该消息之前的消息
+- 没有 user 消息时，`↻` 回退为会话总耗时；没有任何带时间戳的消息时隐藏整行
+- 耗时格式化规则：`< 1s` 显示 `350ms`、`< 10s` 显示 `4.2s`、`< 1h` 显示 `12m 34s`、`< 1d` 显示 `3h 12m`，更长为 `2d 05h`
 
 ## 统计规则
 
@@ -160,6 +177,7 @@ npm run build   # tsc 生成类型声明 + esbuild 打包 dist
 │   ├── tui.tsx           # TUI 插件入口（id + setup）
 │   ├── context-line.tsx  # 侧边栏 SolidJS 组件
 │   ├── context.ts        # 纯函数：上下文占用计算与 token 格式化
+│   ├── duration.ts       # 纯函数：会话耗时计算与格式化
 │   ├── folder.ts         # 当前文件夹路径拼接 + 调用系统文件管理器
 │   └── server.ts         # 服务端空插件（不加载任何 TUI 代码）
 ├── test/                 # node --test 单元测试
@@ -180,8 +198,10 @@ OpenCode 启动
               └─ ctx.ui.slot({ prepend: "sidebar.content", render: ContextLine })
                     ├─ 读取 session messages + models
                     │     └─ computeContextUsage() → 渲染进度条
-                    └─ 读取 session.location / subpath
-                          └─ 渲染文件夹行 → 点击 openFolder()
+                    ├─ 读取 session.location / subpath
+                    │     └─ 渲染文件夹行 → 点击 openFolder()
+                    └─ 读取 messages + session.status()
+                          └─ computeSessionTiming() → 渲染耗时行（运行中每秒刷新）
 ```
 
 ## 常见问题

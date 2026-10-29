@@ -1,8 +1,9 @@
 /** @jsxImportSource @opentui/solid */
-import { createMemo, createSignal, Show } from "solid-js"
+import { createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { RGBA } from "@opentui/core"
 import type { Context } from "@opencode/plugin/tui/context"
 import { computeContextUsage, formatTokensShort } from "./context.js"
+import { computeSessionTiming, formatDuration } from "./duration.js"
 import { openFolder, resolveFolder } from "./folder.js"
 
 interface ContextLineProps {
@@ -36,6 +37,9 @@ function clamp(value: number, min: number, max: number): number {
 function barWidth(available: number, reserved: number): number {
   return clamp(available - reserved, 4, 24)
 }
+
+/** 运行中的旋转图标帧（空闲时显示静态 ↻）。 */
+const SPINNER = ["◐", "◓", "◑", "◒"] as const
 
 /** 从左侧裁剪路径，保留最有用的尾部；放不下时以省略号开头。 */
 function fitPath(value: string, max: number): string {
@@ -85,6 +89,42 @@ export function ContextLine(props: ContextLineProps) {
     const messages = props.ctx.data.session.message.list(props.sessionID)
     const models = props.ctx.data.location.model.list(session?.location)
     return computeContextUsage(messages, models, session?.revert?.messageID)
+  })
+
+  const [now, setNow] = createSignal(Date.now())
+
+  const running = createMemo(() => {
+    try {
+      return props.ctx.data.session.status(props.sessionID) === "running"
+    } catch {
+      return false
+    }
+  })
+
+  // 运行中每秒刷新一次，让耗时实时跳动；空闲时不更新，避免无意义重渲染。
+  const timer = setInterval(() => {
+    if (running()) setNow(Date.now())
+  }, 1000)
+
+  // 运行中图标旋转，约 8fps；空闲时保持静态 ↻。
+  const [spin, setSpin] = createSignal(0)
+  const spinner = setInterval(() => {
+    if (running()) setSpin((frame) => (frame + 1) % SPINNER.length)
+  }, 120)
+
+  onCleanup(() => {
+    clearInterval(timer)
+    clearInterval(spinner)
+  })
+
+  const timing = createMemo(() => {
+    const session = props.ctx.data.session.get(props.sessionID)
+    const messages = props.ctx.data.session.message.list(props.sessionID)
+    return computeSessionTiming(messages, {
+      now: now(),
+      running: running(),
+      revertMessageID: session?.revert?.messageID,
+    })
   })
 
   /** 当前会话所在文件夹（含 subpath），优先取会话自身的位置。 */
@@ -198,6 +238,20 @@ export function ContextLine(props: ContextLineProps) {
               <span style={{ fg: hovered() ? base() : muted(), underline: hovered() } as any}>
                 {fitPath(folderLabel(directory()), width() - 5)}
               </span>
+            </text>
+          </box>
+        )}
+      </Show>
+      <Show when={timing()}>
+        {(value) => (
+          <box width="100%" paddingX={1} flexShrink={0}>
+            <text wrapMode="none" truncate selectable={false}>
+              <span style={{ fg: muted() } as any}>
+                {value().running ? `${SPINNER[spin()]} ` : "↻ "}
+              </span>
+              <span style={{ fg: base() } as any}>{formatDuration(value().lastRun)}</span>
+              <span style={{ fg: muted() } as any}>{" · ⏱  "}</span>
+              <span style={{ fg: base() } as any}>{formatDuration(value().elapsed)}</span>
             </text>
           </box>
         )}

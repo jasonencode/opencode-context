@@ -31,7 +31,7 @@
   },
   "scripts": {
     "build": "tsc && node build.tui.mjs",
-    "test": "node --test test/context.test.mjs test/folder.test.mjs",
+    "test": "node --test test/context.test.mjs test/duration.test.mjs test/folder.test.mjs",
     "prepack": "npm run build"
   },
   "repository": {
