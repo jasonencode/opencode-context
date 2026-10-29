@@ -14,7 +14,7 @@
 
 - **npm 包名**：`@jasonencode/opencode-context`
 - **插件 ID**：`opencode.sidebar.context`（必须保持不变，见下文）
-- **版本**：`0.4.0`（合并版本）
+- **版本**：`1.0.0`（合并版本）
 - **运行环境**：OpenCode 2.x（以 2.1.3 为基线），OpenTUI ≥ 0.6.6
 - **构建**：`tsc`（仅生成 `.d.ts`）+ `esbuild`（SolidJS JSX 预编译）
 

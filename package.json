@@ -1,6 +1,6 @@
 {
   "name": "@jasonencode/opencode-context",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Context window usage, token analytics & performance dashboard for the OpenCode sidebar",
   "type": "module",
   "main": "./dist/server.js",
