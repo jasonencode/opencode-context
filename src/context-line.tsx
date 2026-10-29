@@ -4,7 +4,6 @@ import { RGBA } from "@opentui/core"
 import type { Context } from "@opencode/plugin/tui/context"
 import { computeContextUsage, formatTokensShort } from "./context.js"
 import { computeSessionTiming, formatDuration } from "./duration.js"
-import { openFolder, resolveFolder } from "./folder.js"
 
 interface ContextLineProps {
   ctx: Context
@@ -41,39 +40,13 @@ function barWidth(available: number, reserved: number): number {
 /** 运行中的旋转图标帧（空闲时显示静态 ↻）。 */
 const SPINNER = ["◐", "◓", "◑", "◒"] as const
 
-/** 从左侧裁剪路径，保留最有用的尾部；放不下时以省略号开头。 */
-function fitPath(value: string, max: number): string {
-  if (max <= 0) return ""
-  if (visualWidth(value) <= max) return value
-
-  let tail = ""
-  let used = 0
-  for (const char of [...value].reverse()) {
-    const charWidth = visualWidth(char)
-    if (used + charWidth > max - 1) break
-    tail = char + tail
-    used += charWidth
-  }
-  return `…${tail}`
-}
-
 export function ContextLine(props: ContextLineProps) {
   const [width, setWidth] = createSignal(36)
-  const [hovered, setHovered] = createSignal(false)
   let boxRef: any = null
-  let folderRef: any = null
 
   const measure = (el: any) => {
     const measured = Number(el?.width)
     if (Number.isFinite(measured) && measured > 0) setWidth(measured)
-  }
-
-  const defaultDirectory = () => {
-    try {
-      return props.ctx.data.location.default()?.directory
-    } catch {
-      return undefined
-    }
   }
 
   const theme = () => props.ctx.theme as any
@@ -127,36 +100,6 @@ export function ContextLine(props: ContextLineProps) {
     })
   })
 
-  /** 当前会话所在文件夹（含 subpath），优先取会话自身的位置。 */
-  const folder = createMemo(() => {
-    const session = props.ctx.data.session.get(props.sessionID)
-    const directory =
-      session?.location?.directory ?? props.ctx.location?.directory ?? defaultDirectory()
-    if (!directory) return undefined
-    return resolveFolder(directory, session?.subpath)
-  })
-
-  const folderLabel = (directory: string) => {
-    try {
-      return props.ctx.ui.format.path(directory)
-    } catch {
-      return directory
-    }
-  }
-
-  const openCurrentFolder = () => {
-    const directory = folder()
-    if (!directory) return
-    void openFolder(directory).catch((err) => {
-      const message = err instanceof Error ? err.message : String(err)
-      try {
-        props.ctx.ui.toast.show({ message: `Open folder failed: ${message}`, variant: "error" })
-      } catch {
-        /* host may not expose toast */
-      }
-    })
-  }
-
   const ratioText = (used: number, limit: number | undefined) =>
     limit ? `${formatTokensShort(used)}/${formatTokensShort(limit)}` : formatTokensShort(used)
 
@@ -165,6 +108,15 @@ export function ContextLine(props: ContextLineProps) {
     if (percent >= 90) return error()
     if (percent >= 70) return warning()
     return success()
+  }
+
+  /** 本轮执行时间越长颜色越警示：1m 起琥珀色，3m/5m 逐步加深，10m 起红色。 */
+  const lastRunColor = (ms: number) => {
+    if (ms >= 10 * 60_000) return error()
+    if (ms >= 5 * 60_000) return RGBA.fromInts(255, 87, 34, 255)
+    if (ms >= 3 * 60_000) return RGBA.fromInts(255, 152, 0, 255)
+    if (ms >= 60_000) return warning()
+    return base()
   }
 
   const layout = (used: number, limit: number | undefined, percent: number | undefined) => {
@@ -215,33 +167,6 @@ export function ContextLine(props: ContextLineProps) {
           )
         }}
       </Show>
-      <Show when={folder()}>
-        {(directory) => (
-          <box
-            ref={(el: any) => {
-              folderRef = el
-            }}
-            onSizeChange={() => measure(folderRef)}
-            width="100%"
-            paddingX={1}
-            flexShrink={0}
-            onMouseDown={(event: any) => {
-              event?.stopPropagation?.()
-              event?.preventDefault?.()
-              openCurrentFolder()
-            }}
-            onMouseOver={() => setHovered(true)}
-            onMouseOut={() => setHovered(false)}
-          >
-            <text wrapMode="none" truncate selectable={false}>
-              <span style={{ fg: muted() } as any}>{"📁 "}</span>
-              <span style={{ fg: hovered() ? base() : muted(), underline: hovered() } as any}>
-                {fitPath(folderLabel(directory()), width() - 5)}
-              </span>
-            </text>
-          </box>
-        )}
-      </Show>
       <Show when={timing()}>
         {(value) => (
           <box width="100%" paddingX={1} flexShrink={0}>
@@ -249,7 +174,9 @@ export function ContextLine(props: ContextLineProps) {
               <span style={{ fg: muted() } as any}>
                 {value().running ? `${SPINNER[spin()]} ` : "↻ "}
               </span>
-              <span style={{ fg: base() } as any}>{formatDuration(value().lastRun)}</span>
+              <span style={{ fg: lastRunColor(value().lastRun) } as any}>
+                {formatDuration(value().lastRun)}
+              </span>
               <span style={{ fg: muted() } as any}>{" · ⏱  "}</span>
               <span style={{ fg: base() } as any}>{formatDuration(value().elapsed)}</span>
             </text>

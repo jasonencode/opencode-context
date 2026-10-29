@@ -83,7 +83,8 @@ test("没有带时间的消息时返回 undefined", () => {
 
 test("formatDuration 分档格式化", () => {
   assert.equal(formatDuration(0), "0s")
-  assert.equal(formatDuration(350), "350ms")
+  assert.equal(formatDuration(350), "0.3s")
+  assert.equal(formatDuration(1000), "1s")
   assert.equal(formatDuration(4200), "4.2s")
   assert.equal(formatDuration(42000), "42s")
   assert.equal(formatDuration(60000), "1m")

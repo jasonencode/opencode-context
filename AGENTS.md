@@ -14,7 +14,6 @@ built-in right-sidebar Context line by reusing the
 - `src/context.ts` — pure context-window calculation (no host dependency).
 - `src/duration.ts` — pure session timing (total wall clock + last run).
 - `src/context-line.tsx` — SolidJS component rendered into `sidebar.content`.
-- `src/folder.ts` — session folder path + OS file-manager spawn (no host API).
 - `src/server.ts` — legal empty server plugin.
 - `build.tui.mjs` — esbuild bundle (SolidJS JSX + TUI/server entries).
 

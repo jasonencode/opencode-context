@@ -79,10 +79,9 @@ export function computeSessionTiming(
 }
 
 /**
- * 格式化耗时（毫秒）。
+ * 格式化耗时（毫秒）为秒。
  *
- * - < 1s：`350ms`
- * - < 10s：`4.2s`
+ * - < 10s：`4.2s`（保留一位小数，整数省略 `.0`）
  * - < 60s：`42s`
  * - < 1h：`12m 34s`
  * - < 1d：`3h 12m`
@@ -91,10 +90,8 @@ export function computeSessionTiming(
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return "0s"
 
-  if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`
-
   const seconds = ms / 1000
-  if (seconds < 10) return `${(Math.floor(seconds * 10) / 10).toFixed(1)}s`
+  if (seconds < 10) return `${Math.floor(seconds * 10) / 10}s`
   if (seconds < 60) return `${Math.floor(seconds)}s`
 
   const minutes = Math.floor(seconds / 60)
