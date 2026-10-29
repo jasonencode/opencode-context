@@ -1,6 +1,6 @@
 {
   "name": "@jasonencode/opencode-context",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Context window usage for the OpenCode sidebar",
   "type": "module",
   "main": "./dist/server.js",
