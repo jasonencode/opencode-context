@@ -51,12 +51,17 @@ function barWidth(available: number, reserved: number): number {
 const SPINNER = ["◐", "◓", "◑", "◒"] as const
 
 /**
- * 每个会话最近一次运行中算出的本轮起点。
+ * 每个会话当前这一轮的执行起点。
  *
- * session 变为 idle 后 `time.idle` 会更新为本轮结束时间，无法再定位起点；
- * 这里把运行中算出的起点缓存下来，保证本轮结束后显示值不会跳回追加消息处。
+ * - 运行中：中途追加的 user 消息属于同一轮，不能重置起点；即使宿主把
+ *   `time.idle` 更新为中间执行的结束时间，也要沿用已锚定的起点。
+ * - 变为 idle 后：`time.idle` 已是本轮结束时间，无法再定位起点，继续沿用缓存。
+ *
+ * 只有在会话从 idle 重新进入 running（真正的新一轮）时才丢弃旧值。
  */
 const roundStarts = new Map<string, number>()
+/** 每个会话上一次观察到的运行状态，用于识别 idle → running 的新轮次。 */
+const lastRunning = new Map<string, boolean>()
 
 export function ContextSection(props: ContextSectionProps) {
   const [width, setWidth] = createSignal(36)
@@ -132,14 +137,22 @@ export function ContextSection(props: ContextSectionProps) {
     }
 
     const isRunning = running()
+    // idle → running 表示进入新一轮：旧起点属于上一轮，必须丢弃。
+    // running 期间追加消息不会改变状态，缓存会一直沿用到本轮结束。
+    if (isRunning && lastRunning.get(props.sessionID) !== true) {
+      roundStarts.delete(props.sessionID)
+    }
+    lastRunning.set(props.sessionID, isRunning)
+
     const result = computeSessionTiming(messages(), {
       now: now(),
       running: isRunning,
       revertMessageID,
       // 运行中：本轮起点 = 上次 idle 之后的第一条 user 消息
       idleAt: isRunning ? idleAt : undefined,
-      // 已结束：沿用运行中算出的起点，避免 idle 时间更新后跳变
-      roundStart: isRunning ? undefined : roundStarts.get(props.sessionID),
+      // 已锚定的起点优先于重新推导：中途追加的 user 消息、
+      // 以及宿主更新 time.idle 都不能重置本轮计时。
+      roundStart: roundStarts.get(props.sessionID),
     })
 
     if (isRunning && result) {

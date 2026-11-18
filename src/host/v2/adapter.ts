@@ -110,11 +110,12 @@ function stringifyToolContent(content: any): string {
   return out
 }
 
-/** step.started 里携带、step.ended 里缺失的元信息（model / 请求起点） */
+/** step.started 里携带、step.ended 里缺失的元信息（model / 请求起点 / 流式终点） */
 interface StepMeta {
   providerID: string
   modelID: string
   started?: number
+  streamed?: number
 }
 
 /**
@@ -164,7 +165,10 @@ function buildMessageEvent(
     // settlement 时间），与宿主官方 tok/s 口径一致；缺失时回退 completed / 事件时间。
     timeCreated: assistant?.time?.created ?? meta?.started,
     timeCompleted:
-      assistant?.time?.streamed ?? assistant?.time?.completed ?? event?.created,
+      assistant?.time?.streamed ??
+      meta?.streamed ??
+      assistant?.time?.completed ??
+      event?.created,
   }
 }
 
@@ -227,11 +231,49 @@ export function createV2Adapter(ctx: Context, dispose: Set<() => void>): HostAda
           const part: NormalizedPartEvent = {
             messageID: data.assistantMessageID,
             type: "step",
+            // 2.3 的 step.started.data.started 是真正的请求起点，优先于事件时间
+            timeStart: data.started ?? event?.created,
+          }
+          handlers.onPartUpdated(part)
+          // 运行开始 / 中途新 step：刷新一次侧边栏，让 running 状态与计时器及时启动
+          handlers.onInvalidate()
+        }),
+      )
+      // 2.3 新增：首个 token 到达（权威 TTFT 锚点，早于首个 delta 的解析开销）
+      off.push(
+        ctx.data.on("session.step.first-token", (event: any) => {
+          const part: NormalizedPartEvent = {
+            messageID: event?.data?.assistantMessageID,
+            type: "first-token",
             timeStart: event?.created,
           }
           handlers.onPartUpdated(part)
         }),
       )
+      // 2.3 新增：provider 响应体接收完毕（早于工具结算）。
+      // 记录为 step.ended 查不到 assistant 消息时的 TPS 终点兜底。
+      off.push(
+        ctx.data.on("session.step.streamed", (event: any) => {
+          const messageID = event?.data?.assistantMessageID
+          if (!messageID) return
+          const meta = stepMeta.get(messageID)
+          if (meta) meta.streamed = event?.created
+        }),
+      )
+      // 2.3 的 execution 事件：turn 级起止。用于刷新 UI 运行状态；
+      // 终态同时标记用量缓存脏，交给 /usage 的 stale-while-revalidate 重建。
+      off.push(
+        ctx.data.on("session.execution.started", () => {
+          handlers.onInvalidate()
+        }),
+      )
+      const onExecutionEnd = () => {
+        markUsageCacheDirty()
+        handlers.onInvalidate()
+      }
+      off.push(ctx.data.on("session.execution.succeeded", onExecutionEnd))
+      off.push(ctx.data.on("session.execution.failed", onExecutionEnd))
+      off.push(ctx.data.on("session.execution.interrupted", onExecutionEnd))
       // 推理/文本 part 的"打开"事件：provider 打开占位符即发（≈ step 起点，
       // 恒早于首 token），只作 TPS 流式窗口锚点，不参与 TTFT
       off.push(
@@ -280,7 +322,7 @@ export function createV2Adapter(ctx: Context, dispose: Set<() => void>): HostAda
           handlers.onPartUpdated(part)
         }),
       )
-      // 注意：2.1.3 的实时事件流（OpenCodeEvent）不包含
+      // 注意：2.3.2 的实时事件流（OpenCodeEvent）不包含
       // `session.message.content.updated`（该事件仅走 durable 回放）。
       // 侧边栏在 step.ended / step 事件到达时刷新即可，无需逐 delta 重绘。
       off.push(
@@ -368,7 +410,7 @@ export function createV2Adapter(ctx: Context, dispose: Set<() => void>): HostAda
     },
 
     registerCommands(specs) {
-      // 2.1.3 文档允许在 setup 内（含 await 之后）调用 keymap.layer，因此先
+      // 2.3 文档允许在 setup 内（含 await 之后）调用 keymap.layer，因此先
       // 直接注册；部分早期 2.x beta 会因 setup 无 Solid owner 抛
       // "Keymap.Provider is missing"，此时退回由 prompt.footer 插槽在组件树
       // 内挂载（见 registerSidebar），两种宿主都能拿到命令。
@@ -468,7 +510,7 @@ export function createV2Adapter(ctx: Context, dispose: Set<() => void>): HostAda
     },
 
     onPartUpdated(handler: () => void) {
-      // 2.1.3 无 `session.message.content.updated` 实时事件；用内容增量事件
+      // 2.3.2 无 `session.message.content.updated` 实时事件；用内容增量事件
       // 作为 part 更新信号（调用方已按 ~2Hz 节流）。
       try {
         const off = [

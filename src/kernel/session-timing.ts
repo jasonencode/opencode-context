@@ -34,7 +34,12 @@ export interface SessionTimingOptions {
    * user 消息不会把本轮计时清零。
    */
   readonly idleAt?: number
-  /** 已缓存的本轮起点；会话变为 idle 后由调用方传回，保持显示稳定 */
+  /**
+   * 已锚定的本轮起点。
+   *
+   * 运行中同样优先使用：本轮未结束时追加的 user 消息属于同一轮，不能
+   * 通过重新推导起点来重置计时；会话变为 idle 后继续沿用，保持显示稳定。
+   */
   readonly roundStart?: number
 }
 

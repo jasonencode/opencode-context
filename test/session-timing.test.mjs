@@ -98,6 +98,24 @@ test("运行中追加 user 消息不重置本轮计时（idleAt 定位本轮起�
   assert.equal(timing.elapsed, 14000)
 })
 
+test("运行中追加 user 消息后，即使宿主更新 idle 时间也不重置本轮起点", () => {
+  const messages = [
+    user("u1", 1000),
+    assistant("a1", 2000, 5000),
+    user("u2", 6000), // 本轮发起
+    user("u3", 8000), // 运行中追加，属于同一轮
+    assistant("a2", 9000),
+  ]
+  const timing = computeSessionTiming(messages, {
+    now: 15000,
+    running: true,
+    idleAt: 8000, // 宿主把 idle 更新到中间执行的结束时间
+    roundStart: 6000, // 已锚定的本轮起点
+  })
+  assert.equal(timing.lastRunStart, 6000)
+  assert.equal(timing.lastRun, 9000)
+})
+
 test("本轮结束后沿用缓存的本轮起点", () => {
   const messages = [
     user("u1", 1000),

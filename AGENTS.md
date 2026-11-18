@@ -1,6 +1,6 @@
 # opencode-context — Agent Context
 
-> 本文档供 AI 编程助手快速了解合并后的项目。最后更新：2026-10-29。
+> 本文档供 AI 编程助手快速了解合并后的项目。最后更新：2026-11-18。
 
 ## 项目
 
@@ -14,8 +14,8 @@
 
 - **npm 包名**：`@jasonencode/opencode-context`
 - **插件 ID**：`opencode.sidebar.context`（必须保持不变，见下文）
-- **版本**：`1.0.0`（合并版本）
-- **运行环境**：OpenCode 2.x（以 2.1.3 为基线），OpenTUI ≥ 0.6.6
+- **版本**：`1.1.0`（OpenCode 2.3 适配）
+- **运行环境**：OpenCode ≥ 2.3.2，OpenTUI ≥ 0.9.2，Node.js ≥ 22（构建）
 - **构建**：`tsc`（仅生成 `.d.ts`）+ `esbuild`（SolidJS JSX 预编译）
 
 ## 架构
@@ -45,7 +45,7 @@ OpenCode 2.x host
   `store.ts`、`config.ts`、`format.ts`、`i18n.ts`、`report*.ts`。
 - `src/ui/` — `context-section.tsx`（面板顶部：上下文 + 耗时）、`sidebar.tsx`（Session 面板）。
 - `build.tui.mjs` — esbuild 打包 + `dist/server.js` 泄漏断言。
-- `test/` — `node --test`，用 esbuild 即时打包纯函数源码。
+- `test/` — `node --test`，用 esbuild 即时打包纯函数与适配层源码。
 
 ## 上下文规则（必须与宿主一致）
 
@@ -63,9 +63,12 @@ OpenCode 2.x host
 - **一轮以 agent 结束输出（会话进入 idle）为边界**。运行中用户继续追加的
   user 消息仍属于同一轮，不能重置 `lastRun`。
 - 本轮起点：
-  - `running`：`SessionInfo.time.idle`（上次 idle）之后的第一条 user 消息；
-  - `idle`：沿用运行中算出的起点（`context-section.tsx` 内的会话级缓存）；
+  - `running`：上次 idle 之后的第一条 user 消息；首次锚定后写入
+    `context-section.tsx` 的会话级缓存，并**优先沿用缓存**；
+  - `idle`：继续沿用缓存起点；
+  - 只有 `idle → running`（真正的新一轮）才丢弃缓存并重新锚定；
   - 两者都不可用：回退到最后一组连续 user 消息的第一条。
+- 运行中追加 user 消息、宿主更新 `time.idle` 都不能重置 `lastRun`。
 - 纯函数实现位于 `kernel/session-timing.ts`，新增逻辑需补 `test/session-timing.test.mjs`。
 
 ## 插件 ID 与存储（重要）
@@ -95,7 +98,7 @@ OpenCode 2.x host
 ```sh
 npm install
 npm run build     # tsc + esbuild → dist/tui.js + dist/server.js
-npm test          # context + session-timing 纯函数测试
+npm test          # context + session-timing + v2 adapter 测试
 ```
 
 ## 注意事项
@@ -105,7 +108,9 @@ npm test          # context + session-timing 纯函数测试
   不要加入 `dependencies`（第二份 OpenTUI 运行时会导致插件失效）。
 - `@opencode/plugin` 只读类型，入口用 type-only import。
 - 实时事件使用 `session.step.*`、`session.text/reasoning.delta`、
-  `session.tool.progress`；2.1.3 的实时事件流不含
-  `session.message.content.updated`。
+  `session.tool.progress`、`session.execution.*`；2.3.2 的实时事件流仍不含
+  `session.message.content.updated`（仅 durable 回放）。
+- TTFT 优先用 `session.step.first-token`；TPS 窗口起点用
+  `session.step.started.data.started`，终点用 assistant `time.streamed`。
 - `keymap.layer` 在无 Solid owner 的早期 2.x beta 会抛错，适配层会回退到
   `prompt.footer` 插槽内注册。

@@ -60,6 +60,8 @@
 | `⏱` 后的时间 | 会话总耗时：首条消息到最后一条消息完成（运行中算到当前） |
 
 - **一轮以 agent 结束输出（会话进入 idle）为边界**；运行中继续追加 user 消息仍属于同一轮，`↻` 不会清零
+- 本轮起点在运行中首次确定后会缓存并持续沿用：即使宿主把 `time.idle` 更新为中间执行的结束时间，也不会跳回最新消息
+- 只有会话从 idle 重新进入 running（真正的新一轮）时才会重新锚定起点
 - 运行中每秒刷新，`↻` 变成旋转指示器（`◐ ◓ ◑ ◒`）；空闲后恢复静态图标
 - 存在 `revert.messageID` 时只统计该消息之前的消息
 - 本轮耗时 ≥ 1m 后按 1m / 3m / 5m / 10m 分级变色
@@ -99,9 +101,9 @@ HTML 报告包含：用量趋势、模型对比、缓存效率、TTFT/TPS、延�
 
 | 依赖 | 要求 |
 | --- | --- |
-| OpenCode | 2.x（以 2.1.3 为基线） |
-| OpenTUI | ≥ 0.6.6（由宿主提供，无需单独安装） |
-| Node.js | ≥ 18（仅构建/本地开发时需要） |
+| OpenCode | ≥ 2.3.2（2.3.x / 2.x 后续版本） |
+| OpenTUI | ≥ 0.9.2（由宿主提供，无需单独安装） |
+| Node.js | ≥ 22（仅构建/本地开发时需要；运行时以宿主为准） |
 
 ## 安装
 
@@ -194,14 +196,15 @@ npm run build
 - `elapsed`：首条消息 → 最后一条消息完成；运行中取当前时间。
 - `lastRun`：本轮起点 → 最后一条消息完成；运行中取当前时间。
 - 本轮起点 = 上次会话进入 idle 之后的第一条 user 消息；运行中追加的 user 消息不会重置。
-- 会话变为 idle 后沿用运行中算出的起点；缺少 idle 信息时回退到最后一组连续 user 消息的第一条。
+- 运行中首次锚定后缓存起点并优先沿用；只有 idle → running 的新一轮才重新锚定。
+- 会话变为 idle 后沿用缓存起点；缺少 idle 信息时回退到最后一组连续 user 消息的第一条。
 
 ### 缓存命中率与性能
 
 | 指标 | 口径 |
 | --- | --- |
 | 缓存命中率 | `cacheRead / (cacheRead + input)` |
-| TTFT | 首个 text/reasoning **delta** − step 起点 |
+| TTFT | 2.3 优先使用 `session.step.first-token`，缺失时回退到首个 text/reasoning **delta** − step 起点 |
 | TPS | `outputTokens / (time.streamed − 流式窗口起点)` |
 | 延迟 | 请求开始 → 流式结束 |
 | 平均值 | Welford 在线均值，仅统计有效样本 |
@@ -290,7 +293,7 @@ npm publish --access public
 
 **侧边栏没有上下文进度条？**
 
-- 确认 OpenCode 为 2.x，且插件已加入 `plugins`
+- 确认 OpenCode 为 2.3.2 或更高版本，且插件已加入 `plugins`
 - 新会话在第一条 assistant 回复完成前没有 token 数据，属正常现象
 - 本地加载时确认已执行 `npm run build`
 
@@ -315,6 +318,14 @@ npm publish --access public
 本地目录插件直接读取 `dist/`，请重新执行 `npm run build` 并重启 OpenCode。
 
 ## 更新日志
+
+### v1.1.0
+
+- 升级到 OpenCode 2.3 插件 API：`@opencode/plugin` 2.3.2、OpenTUI 0.9.2、TypeScript 7
+- 适配 2.3 的消息与事件模型：`session.execution.*`、`session.step.first-token`
+- TTFT 优先使用 `session.step.first-token`；TPS 窗口起点使用 `step.started.data.started`
+- 加固本轮计时：运行中缓存起点并优先沿用，追加消息不再可能重置 `↻`
+- 新增 2.3 适配层回归测试，测试总数 27 项
 
 ### v1.0.0
 
